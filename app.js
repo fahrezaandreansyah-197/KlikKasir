@@ -174,6 +174,6 @@ function processPayment() {
 }
 function logout() {
   if (confirm("Apakah Anda yakin ingin keluar?")) {
-    window.location.href = "index.html";
+    window.location.href = "index.php";
   }
 }
