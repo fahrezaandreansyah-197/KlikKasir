@@ -1,10 +1,25 @@
 let cart = [];
+let stockModalState = {
+  id: 0,
+  name: "",
+  currentStock: 0,
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   const search = document.getElementById("searchBar");
   if (search) search.addEventListener("input", (e) => filterProducts(e.target.value));
 
   if (document.getElementById("cartItems")) updateCartUI();
+  
+  // Event delegation for stock modal buttons (use data-* attributes)
+  document.body.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-open-stock]');
+    if (!btn) return;
+    const id = Number(btn.dataset.id || 0);
+    const name = btn.dataset.name || '';
+    const stock = Number(btn.dataset.stock || 0);
+    openStockModal(id, name, stock);
+  });
 });
 
 function filterProducts(filter = "") {
@@ -64,30 +79,102 @@ function updateCartUI() {
 }
 
 function addStock(id) {
-  const amountInput = prompt("Tambah stok berapa?", "10");
-  if (amountInput === null) return;
+  const row = document.querySelector(`[data-barang-row="${id}"]`);
+  if (!row) return;
 
-  const amount = Number(amountInput);
-  if (!Number.isInteger(amount) || amount <= 0) {
-    alert("Jumlah stok harus berupa angka bulat lebih dari 0.");
+  openStockModal(
+    Number(id),
+    row.querySelector(".font-semibold.text-slate-900")?.textContent?.trim() || "",
+    Number(row.dataset.stockValue || row.querySelector("[data-stock-badge]")?.textContent || 0)
+  );
+}
+
+function openStockModal(id, nama, stokSekarang) {
+  stockModalState = {
+    id: Number(id) || 0,
+    name: nama || "",
+    currentStock: Number(stokSekarang) || 0,
+  };
+
+  const modal = document.getElementById("stockModal");
+  const title = document.getElementById("stockModalTitle");
+  const name = document.getElementById("stockModalName");
+  const currentStock = document.getElementById("stockModalCurrentStock");
+  const amountInput = document.getElementById("stockAmount");
+
+  if (!modal || !title || !name || !currentStock || !amountInput) return;
+
+  title.textContent = `#${stockModalState.id}`;
+  name.textContent = stockModalState.name;
+  currentStock.textContent = `${stockModalState.currentStock} pcs`;
+  amountInput.value = "";
+  amountInput.focus();
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+
+  if (window.lucide && typeof window.lucide.createIcons === "function") {
+    window.lucide.createIcons();
+  }
+}
+
+function closeStockModal() {
+  const modal = document.getElementById("stockModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+function processStockAction(action) {
+  const amountInput = document.getElementById("stockAmount");
+  if (!amountInput) return;
+
+  const amount = Number(amountInput.value);
+  if (!Number.isInteger(amount) || amount < 0) {
+    alert("Jumlah stok harus berupa angka bulat 0 atau lebih.");
     return;
   }
 
-  fetch("process/add_stock.php", {
+  let stokBaru = stockModalState.currentStock;
+
+  if (action === "set") {
+    stokBaru = amount;
+  } else if (action === "add") {
+    stokBaru += amount;
+  } else if (action === "subtract") {
+    stokBaru -= amount;
+  }
+
+  if (stokBaru < 0) {
+    alert("Stok tidak boleh kurang dari 0.");
+    return;
+  }
+
+  const previousStock = stockModalState.currentStock;
+
+  fetch("process/update_stock_action.php", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ id, amount }),
+    body: JSON.stringify({
+      id_barang: stockModalState.id,
+      stok_baru: stokBaru,
+    }),
   })
     .then(async (response) => {
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload) throw new Error(payload?.message || "Gagal menambah stok.");
-      if (!payload.success) throw new Error(payload.message || "Gagal menambah stok.");
+      if (!response.ok || !payload) throw new Error(payload?.message || "Gagal memperbarui stok.");
+      if (!payload.success) throw new Error(payload.message || "Gagal memperbarui stok.");
 
-      const row = document.querySelector(`[data-barang-row="${id}"]`);
+      stockModalState.currentStock = Number(payload.data.stok);
+  const deltaStock = stockModalState.currentStock - previousStock;
+
+      const row = document.querySelector(`[data-barang-row="${payload.data.id}"]`);
       const stockBadge = row?.querySelector("[data-stock-badge]");
+      if (row) row.dataset.stockValue = String(payload.data.stok);
       if (stockBadge) {
         stockBadge.textContent = `${payload.data.stok} pcs`;
         stockBadge.classList.toggle("bg-rose-100", payload.data.stok <= 10);
@@ -96,28 +183,24 @@ function addStock(id) {
         stockBadge.classList.toggle("text-emerald-700", payload.data.stok > 10);
       }
 
-      const productCardStock = document.querySelector(`[data-product-card][data-id="${id}"] [data-stock-badge]`);
-      if (productCardStock) {
-        productCardStock.textContent = payload.data.stok;
-      }
-
       const statUnits = document.getElementById("statUnits");
       if (statUnits) {
         const currentUnits = Number(statUnits.textContent || 0);
-        statUnits.textContent = String(currentUnits + payload.data.delta_unit);
+        statUnits.textContent = String(currentUnits + deltaStock);
       }
 
       const statValue = document.getElementById("statValue");
       if (statValue) {
         const currentValue = Number(statValue.textContent.replace(/[^0-9]/g, "") || 0);
-        const nextValue = currentValue + payload.data.delta_value;
-        statValue.textContent = `Rp ${nextValue.toLocaleString("id-ID")}`;
+        const unitPrice = Number(row?.dataset.priceValue || 0);
+        statValue.textContent = `Rp ${(currentValue + deltaStock * unitPrice).toLocaleString("id-ID")}`;
       }
 
-      alert(payload.message || "Stok berhasil ditambahkan.");
+      closeStockModal();
+      alert(payload.message || "Stok berhasil diperbarui.");
     })
     .catch((error) => {
-      alert(error.message || "Gagal menambah stok.");
+      alert(error.message || "Gagal memperbarui stok.");
     });
 }
 

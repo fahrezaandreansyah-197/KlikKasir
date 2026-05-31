@@ -68,7 +68,7 @@ require_once __DIR__ . '/includes/navbar.php';
                     <?php if ($barangResult && $barangResult->num_rows > 0): ?>
                         <?php while ($barang = $barangResult->fetch_assoc()): ?>
                             <?php $stockBadgeClass = ((int) $barang['stok'] <= 10) ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'; ?>
-                            <tr data-barang-row="<?= h($barang['id']) ?>" class="hover:bg-slate-50/80">
+                            <tr data-barang-row="<?= h($barang['id']) ?>" data-stock-value="<?= h($barang['stok']) ?>" data-price-value="<?= h($barang['harga']) ?>" class="hover:bg-slate-50/80">
                                 <td class="px-4 py-4 font-semibold text-slate-900"><?= h($barang['nama_barang']) ?></td>
                                 <td class="px-4 py-4"><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"><?= h($barang['kategori']) ?></span></td>
                                 <td class="px-4 py-4 text-sm text-slate-700">
@@ -80,7 +80,7 @@ require_once __DIR__ . '/includes/navbar.php';
                                     <span data-stock-badge class="inline-flex rounded-full px-3 py-1 text-xs font-semibold <?= $stockBadgeClass ?>"><?= h($barang['stok']) ?> pcs</span>
                                 </td>
                                 <td class="px-4 py-4 text-right">
-                                    <button type="button" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700" onclick="addStock(<?= (int) $barang['id'] ?>)">+ Stok</button>
+                                    <button type="button" data-open-stock data-id="<?= (int) $barang['id'] ?>" data-name="<?= h($barang['nama_barang']) ?>" data-stock="<?= (int) $barang['stok'] ?>" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">+ Stok</button>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
@@ -94,4 +94,64 @@ require_once __DIR__ . '/includes/navbar.php';
         </div>
     </div>
 </main>
+
+<div id="stockModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6" onclick="closeStockModal()">
+    <div class="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-900/20" onclick="event.stopPropagation()">
+        <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+            <div class="flex items-start gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+                    <i data-lucide="package-plus" class="h-5 w-5"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Update Stok Barang</p>
+                    <h3 id="stockModalTitle" class="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">Pilih Barang</h3>
+                </div>
+            </div>
+            <button type="button" onclick="closeStockModal()" class="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup modal stok">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-6 p-6">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-500">Nama Barang</div>
+                    <div id="stockModalName" class="mt-1 text-lg font-semibold text-slate-900">-</div>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-500">Stok Saat Ini</div>
+                    <div id="stockModalCurrentStock" class="mt-1 text-lg font-semibold text-slate-900">-</div>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label for="stockAmount" class="text-sm font-semibold text-slate-700">Jumlah Stok</label>
+                <input id="stockAmount" type="number" min="0" step="1" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100" placeholder="Masukkan jumlah stok baru">
+                <p class="text-xs text-slate-500">Gunakan angka untuk menghitung stok baru berdasarkan aksi yang dipilih.</p>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-3">
+                <button type="button" onclick="processStockAction('set')" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                    <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                    Set Langsung
+                </button>
+                <button type="button" onclick="processStockAction('add')" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    Tambah (+)
+                </button>
+                <button type="button" onclick="processStockAction('subtract')" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700">
+                    <i data-lucide="minus" class="h-4 w-4"></i>
+                    Kurangi (-)
+                </button>
+            </div>
+
+            <div class="flex justify-end border-t border-slate-200 pt-4">
+                <button type="button" onclick="closeStockModal()" class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+                    Batal / Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
