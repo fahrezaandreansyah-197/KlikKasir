@@ -23,7 +23,9 @@ $transaksiClass = $activePage === 'transaksi'
             <a href="kasir.php" class="<?= $kasirClass ?>">Kasir</a>
             <a href="gudang.php" class="<?= $gudangClass ?>">Gudang</a>
             <a href="transaksi.php" class="<?= $transaksiClass ?>">Transaksi</a>
-            <button onclick="logout()" class="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">Keluar</button>
+            <form method="post" action="process/logout.php" class="inline">
+                <button type="submit" class="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">Keluar</button>
+            </form>
         </nav>
     </div>
 </header>
